@@ -1,92 +1,78 @@
 
-#include "react/react.hpp"
+#include "cascade/rstream.hpp"
 #include <iostream>
 
-
-bool equals10(float f){
-	return f == 10;
-}
-
-void print_equals10(float f){
-	std::cout << "Y: equals 10: " << f << " recursing!" << std::endl;
-}
-
 template<typename Type>
-void print_vector(std::vector<Type> v){
+void print_buffer(std::vector<Type> buf){
 	std::cout << "[ ";
-	for(Type t : v){
-		std::cout << t << " ";
-	}
+	for(Type t : buf){ std::cout << t << " "; }
 	std::cout << "]" << std::endl;
 }
 
 int main(){
-	
-	//creating a stream: 
-	//streams must be referenced via shared_ptr
-	auto stream = React::make_stream<float>();
-	//OR
-	auto another_stream = std::make_shared<React::rStream<float>>();
-	
-	//react is equivalent to a container's apply function,
-	//it will execute for each value inserted into the stream,
-	auto stream_ptr = stream->react( [](float f){ std::cout << "streaming: " << f << std::endl; } );
-	
-	//react returns a shared_ptr to the calling stream segment
-	if( stream.get() == stream_ptr.get() ){
-		std::cout << "they point to the same stream segment" << std::endl;
-	}
-	
-	//all other functions create and return a new stream fragment,
-	//you can store a pointer to any segment of the stream and inject (insert) values
-	auto X = stream->map<int>( [](float f){ return 2*(int)f; } );
-	X-> react( [](float f){ std::cout << "X: " << f << std::endl; } );
-	X->insert(21);
-		
-	//references to down-stream segments of the stream are kept in 
-	//a shared_ptr and so these are not deleted when scope exits
-	{
-		//inserted values are const& and so cannot be changed by the stream, 
-		//map allows you to map to a new value or even type
-		auto Y = stream->map<float>( [](float f){ return 0.25f*f; } )
-			->map<int>( [](float f){ return ((int)(97*f))%17; } )
-			->react( [](int f){ std::cout << "Y: filtering: " << f << std::endl; } );
-			
-		//filter is a conditional to either stop or allow a value from cascading to down-stream segments
-		Y->filter([](int f)->bool{ return f < 10; })
-			->react( [](int f){ std::cout << "Y: Less than 10: " << f << " STOPPING!" << std::endl; } );
-			
-		//referencing an up-stream segment from within a lambda will result in a ptr cycle
-		//and memory leaks. Create a weak pointer for this,
-		std::weak_ptr<React::rStream<float>> upstream_ref = stream;
-			
-		//streams can be forked to create multiple paths of execution
-		Y->filter([](int f)->bool{ return f > 10; })
-			->react( [](int f){ std::cout << "Y: Greater than 10: " << f << " recursing!" << std::endl; } )
-			->react( [upstream_ref](int f) { 
-					if(auto upstream = upstream_ref.lock()){
-						upstream->insert(f*3); 
-					}
-				});
 
-		//can use lambdas or function pointers
-		Y->filter(equals10)
-			->react(print_equals10)
-			->react( [upstream_ref](int f) { 
-					if(auto upstream = upstream_ref.lock()){
-						upstream->insert(f/2); 
-					}
-				});
-			
-	}
+	using namespace Cascade;
+	
+	// A Cascade::rStream is a composition of segments, where inserted values
+	// cascade down-stream, triggering reactions in each segment 
+	auto stream = make_stream<int>();
+	
+	// Each call to the stream will create and add a new segment
+	// References to down-stream segments are kept as a shared_ptr
+	auto next_segment = stream->react( [](int i){ std::cout << "Hello Cascade!" << std::endl; } );
 
-	//add a delay in the stream,
-	//Note that by default the streams are SERIAL and not PARALLEL! 
-	X->delay(1000)
-		//gather stream values into a vector buffer (maps type to vector<type>) 
-		->buffer(3)
-		->react(print_vector<int>);
-		
-	stream->insert(3.36);
+	// Values can be inserted into any segment
+	next_segment->insert(0);
+
+	// A chain of calls will build a chain of segments and they are executed in order
+	next_segment->react( [](int i){ std::cout << "Chain"; } )
+		->react( [](int i){ std::cout << " reactions"; } )
+		->react( [](int i){ std::cout << "! val: " << i << std::endl; } );
+
+	// Multiple calls to the same segment will fork the stream, and each new path 
+	// is executed in parallel (std::async)
+	auto delayed = next_segment->delay(200);
+	delayed->react( [](int i){ std::cout << "a"; } );
+	delayed->react( [](int i){ std::cout << "b"; } );
+	delayed->react( [](int i){ std::cout << "c"; } );
+	delayed->react( [](int i){ std::cout << "d"; } );
+	delayed->react( [](int i){ std::cout << "e"; } );
+	delayed->react( [](int i){ std::cout << "f"; } );
+	delayed->react( [](int i){ std::cout << "g"; } );
+	delayed->react( [](int i){ std::cout << "h"; } );
+	delayed->react( [](int i){ std::cout << "i"; } );
+	
+	// Delay pauses execution, duration is specified in milliseconds
+	auto delayed_longer = next_segment->delay(400)
+	
+		// React allows executing arbitrary code each time a new value is inserted
+		->react( [](int i){ std::cout << " react is akin to a container's apply" << std::endl; } );
+
+	// Filter can be used to stop the flow from reaching down-stream segments
+	delayed_longer->filter( [](int i){ return i%2 == 0; }  ) 
+
+		// Map allows you to change the stream value or even type
+		->map<float>( [](int i){ return 0.25f*(float)i; } )
+
+		// Buffer will cause the flow to stop until a specified number of values are inserted
+		// These buffered values are mapped into a vector before continuing
+		->buffer(2)
+
+		// Function pointers can be used as well
+		->react(print_buffer<float>);
+
+	//referencing an up-stream segments from within a lambda will result in a ptr cycle
+	//and memory leaks. Create a weak pointer for this
+	std::weak_ptr<rStream<int>> upstream_ref = delayed_longer;
+
+	delayed_longer->filter([](int i){ return i < 10; })
+		->react( 
+		[upstream_ref](int i) { 
+			if(auto upstream = upstream_ref.lock()){
+				upstream->insert(i+1); 
+			}
+		});
+
+	stream->insert(0);
 	std::cout << "this is run after the inserted value is done cascading through the entire network" << std::endl;
 }

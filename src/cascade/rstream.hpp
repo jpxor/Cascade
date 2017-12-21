@@ -10,9 +10,9 @@
 #include <algorithm>
 #include <future>
 
-#include <iostream>  
+#include <iostream>
 
-namespace React {
+namespace Cascade {
 		
 	template<typename Type>
 	class rStream : public std::enable_shared_from_this<rStream<Type>> {
@@ -30,11 +30,7 @@ namespace React {
 			}
 			std::vector<std::future<void>> futures;
 			for(auto reaction : reactions){
-				//serial 
-				//reaction(val);
-				
-				//parallel
-				futures.emplace_back(std::async( std::launch::deferred, reaction, val ));
+				futures.emplace_back(std::async( std::launch::async, reaction, val ));
 			}
 			for(auto& future : futures){
 				future.get();
@@ -42,8 +38,14 @@ namespace React {
 		}
 		
 		std::shared_ptr<rStream<Type>> react(std::function<void(const Type&)> reaction){
-			reactions.push_back(reaction);
-			return this->shared_from_this();
+			auto next_seg = std::make_shared<rStream<Type>>();
+			reactions.push_back(
+				[reaction, next_seg](const Type& val){
+					reaction(val);
+					next_seg->insert(val); 
+				}
+			);
+			return next_seg;
 		}
 		
 		std::shared_ptr<rStream<Type>> delay(int ms){
