@@ -10,8 +10,6 @@
 #include <algorithm>
 #include <future>
 
-#include <iostream>
-
 namespace Cascade {
 		
 	template<typename Type>
@@ -87,11 +85,22 @@ namespace Cascade {
 			reactions.push_back(
 				[count, buffered_stream](const Type& val){
 					static std::vector<Type> buffer; 
-					buffer.push_back(val);//needs thread safety added here
-					
-					if(buffer.size() == count){
-						buffered_stream->insert(buffer);
-						buffer.clear();
+					static std::mutex buf_mutex;
+
+					std::vector<Type> tmp_buffer;
+					{//critical section
+						std::lock_guard<std::mutex> guard(buf_mutex);
+						buffer.push_back(val);
+
+						// swap full static buffer with empty local buffer
+						if(buffer.size() == count){
+							tmp_buffer.swap(buffer);
+						}
+					}
+					// push full buffer downstream without blocking
+					// new elements from being buffered
+					if(tmp_buffer.size() == count){
+						buffered_stream->insert(tmp_buffer);
 					}
 				}
 			);
