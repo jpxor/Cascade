@@ -46,7 +46,7 @@ int main(){
 	auto delayed_longer = next_segment->delay(400)
 	
 		// React allows executing arbitrary code each time a new value is inserted
-		->react( [](int i){ std::cout << " react is akin to a container's apply" << std::endl; } );
+		->react( [](int i){ std::cout << "\n> react is akin to a container's apply" << std::endl; } );
 
 	// Filter can be used to stop the flow from reaching down-stream segments
 	delayed_longer->filter( [](int i){ return i%2 == 0; }  ) 
