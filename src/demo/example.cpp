@@ -1,12 +1,20 @@
 
 #include "cascade/rstream.hpp"
+#include "cascade/functions.hpp"
 #include <iostream>
 
 template<typename Type>
-void print_buffer(std::vector<Type> buf){
+void print_buffer(const std::vector<Type>& buf){
+	static std::mutex print_mutex;
+	std::lock_guard<std::mutex> guard(print_mutex);
+
 	std::cout << "[ ";
 	for(Type t : buf){ std::cout << t << " "; }
 	std::cout << "]" << std::endl;
+}
+
+void print_count(const int& val){
+	std::cout << "Count:" << val << std::endl;
 }
 
 int main(){
@@ -41,7 +49,7 @@ int main(){
 	delayed->react( [](int i){ std::cout << "g"; } );
 	delayed->react( [](int i){ std::cout << "h"; } );
 	delayed->react( [](int i){ std::cout << "i"; } );
-	
+	 
 	// Delay pauses execution, duration is specified in milliseconds
 	auto delayed_longer = next_segment->delay(400)
 	
@@ -58,8 +66,21 @@ int main(){
 		// These buffered values are mapped into a vector before continuing
 		->buffer(2)
 
+		// Reduce function (this one appends the buffers together)
+		->reduce<std::vector<float>>( [](std::vector<float> reduction, std::vector<float> val)->
+			std::vector<float>{ 
+				reduction.insert(std::end(reduction), std::begin(val), std::end(val)); 
+				return reduction;
+			}, std::vector<float>() )
+
 		// Function pointers can be used as well
-		->react(print_buffer<float>);
+		->react(print_buffer<float>)
+		
+		// Reduce, this time use the pre-defined count function
+		->reduce<int>( Cascade::Count<std::vector<float>>, 0 )
+
+		->delay(20)
+		->react(print_count);
 
 	//referencing an up-stream segments from within a lambda will result in a ptr cycle
 	//and memory leaks. Create a weak pointer for this

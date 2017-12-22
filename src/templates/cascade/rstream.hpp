@@ -6,7 +6,7 @@
 #include <future>
 
 namespace Cascade {
-		
+	
 	template<typename Type>
 	class rStream {
 	public:	
@@ -23,7 +23,7 @@ namespace Cascade {
 			}
 
 			std::vector<std::future<void>> futures;
-			
+
 			for(auto reaction : reactions){
 				futures.emplace_back(std::async( std::launch::async, reaction, val ));
 			}
@@ -75,6 +75,25 @@ namespace Cascade {
 				}
 			);
 			return mapped_stream;
+		}
+
+		template<typename RType>
+		std::shared_ptr<rStream<RType>> reduce(std::function<RType(RType&, const Type&)> reduction, RType init_value = 0){
+			auto reduced_stream = std::make_shared<rStream<RType>>();
+			reactions.push_back(
+				[reduction, reduced_stream, init_value](const Type& val){
+					static std::mutex red_mutex;
+					static RType reduced_val = init_value;
+					RType reduced_copy;
+					{//critical section
+						std::lock_guard<std::mutex> guard(red_mutex);
+						reduced_val = reduction(reduced_val, val);
+						reduced_copy = reduced_val;
+					}
+					reduced_stream->insert(reduced_copy);
+				}
+			);
+			return reduced_stream;
 		}
 		
 		std::shared_ptr<rStream<std::vector<Type>>> buffer(unsigned int count){
