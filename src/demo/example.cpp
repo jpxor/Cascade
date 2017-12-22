@@ -34,7 +34,8 @@ int main(){
 
 	// A chain of calls will build a chain of segments and they are executed in order
 	next_segment->react( [](int i){ std::cout << "Chain"; } )
-		->react( [](int i){ std::cout << " reactions"; } )
+		->react( [](int i){ std::cout << " react"; } )
+		->react( [](int i){ std::cout << "ions"; } )
 		->react( [](int i){ std::cout << "! val: " << i << std::endl; } );
 
 	// Multiple calls to the same segment will fork the stream, and each new path 
@@ -76,11 +77,14 @@ int main(){
 		// Function pointers can be used as well
 		->react(print_buffer<float>)
 		
-		// Reduce, this time use the pre-defined count function
+		// Reduce, this time use the pre-defined functions
 		->reduce<int>( Cascade::Count<std::vector<float>>, 0 )
+		->reduce<int>( Cascade::Sum<int>, 0 )
+		->reduce<float>( Cascade::Average<int>, 0 )
+		->reduce<float>( Cascade::Max<float>, 0 )
 
-		->delay(20)
-		->react(print_count);
+		// More functions
+		->react(Cascade::Sigmoid<float>);
 
 	//referencing an up-stream segments from within a lambda will result in a ptr cycle
 	//and memory leaks. Create a weak pointer for this
@@ -95,5 +99,5 @@ int main(){
 		});
 
 	stream->insert(0);
-	std::cout << "this is run after the inserted value is done cascading through the entire network" << std::endl;
+	std::cout << "this is printed after the inserted value is done cascading through the entire network" << std::endl;
 }

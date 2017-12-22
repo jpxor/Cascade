@@ -2,6 +2,8 @@
 #pragma once
 
 #include <mutex>
+#include <math.h>
+#include <algorithm>
 
 namespace Cascade {
 
@@ -12,21 +14,16 @@ namespace Cascade {
     auto Sum = [](const int& sum, const Type& val){ return sum+val; };
 
     template<typename Type>
-    auto Average = [](const int& avg, const Type& val){ 
-        static std::mutex mutex;
-        static int count = 0;
-        static Type sum = 0;
-        {//critical section
-            std::lock_guard<std::mutex> guard(mutex);
-            ++count;
-            sum += val;
-            return sum/count; 
-        }
-    };
-
+    auto Max = [](const Type& red, const Type& val){ return std::max(red, val); };
 
     template<typename Type>
-    auto Max = [](const int& max, const Type& val){ 
+    auto Min = [](const Type& red, const Type& val){ return std::min(red, val); };
+
+    template<typename Type>
+    auto Sigmoid = [](const Type& val){ return 1.f/( 1.f + exp(-val) ); };
+
+    template<typename Type>
+    auto Average = [](const int& avg, const Type& val){ 
         static std::mutex mutex;
         static int count = 0;
         static Type sum = 0;
