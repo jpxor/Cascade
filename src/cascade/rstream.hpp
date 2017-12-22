@@ -2,18 +2,13 @@
 #pragma once
 
 #include <functional>
-#include <string>
-#include <vector>
 #include <memory>
-#include <chrono>
-#include <thread>
-#include <algorithm>
 #include <future>
 
 namespace Cascade {
 		
 	template<typename Type>
-	class rStream : public std::enable_shared_from_this<rStream<Type>> {
+	class rStream {
 	public:	
 		rStream(){}
 		~rStream(){}
@@ -26,7 +21,9 @@ namespace Cascade {
 				reactions[0](val);
 				return;
 			}
+
 			std::vector<std::future<void>> futures;
+			
 			for(auto reaction : reactions){
 				futures.emplace_back(std::async( std::launch::async, reaction, val ));
 			}
