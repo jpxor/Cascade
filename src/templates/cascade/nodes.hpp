@@ -6,7 +6,7 @@
 #include <future>
 
 namespace Cascade {
-	
+
 	template<typename InType>
 	class Node {
 	public:
@@ -30,7 +30,7 @@ namespace Cascade {
 				return;
 			}
 			std::vector<std::future<void>> futures;
-			for(auto child : child_nodes){
+			for(auto& child : child_nodes){
 				Node<OutType>* node = child.get();
 				futures.emplace_back(std::async( std::launch::async, &Node<OutType>::insert, node, out_val ) );
 			}
@@ -39,7 +39,6 @@ namespace Cascade {
 			}
 		}
 
-		#include <type_traits>
 		void insert(const InType& val) {
 			if(behaviour) {
 				return behaviour(val);
@@ -106,7 +105,7 @@ namespace Cascade {
 				static std::vector<OutType> buffer;
 				static std::mutex buf_mutex;
 
-				std::vector<OutType> tmp_buffer;
+				std::vector<OutType    > tmp_buffer;
 				{ //critical section
 					std::lock_guard<std::mutex> guard(buf_mutex);
 					buffer.push_back(val);
